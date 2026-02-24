@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mon Portefeuille</title>
+    <style>
+        body { font-family: Arial; padding: 30px; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { padding: 10px; border-bottom: 1px solid #ddd; }
+        th { background: #f5f5f5; }
+        .positive { color: green; }
+        .negative { color: red; }
+    </style>
+</head>
+<body>
+    <h1>📊 Mon Portefeuille</h1>
+
+    <table>
+        <tr>
+            <th>Action</th>
+            <th>Prix actuel</th>
+            <th>Investi</th>
+            <th>Valeur actuelle</th>
+            <th>Résultat</th>
+            <th>%</th>
+        </tr>
+        {% for p in positions %}
+        <tr>
+            <td>{{ p.name }}</td>
+            <td>{{ p.price }} €</td>
+            <td>{{ p.invested }} €</td>
+            <td>{{ p.current }} €</td>
+            <td class="{{ 'positive' if p.profit >= 0 else 'negative' }}">
+                {{ p.profit }} €
+            </td>
+            <td class="{{ 'positive' if p.performance >= 0 else 'negative' }}">
+                {{ p.performance }} %
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <h2>Total</h2>
+    <p>Total investi : {{ total_invested }} €</p>
+    <p>Valeur actuelle : {{ total_current }} €</p>
+    <p class="{{ 'positive' if total_profit >= 0 else 'negative' }}">
+        Résultat global : {{ total_profit }} € ({{ total_perf }} %)
+    </p>
+</body>
+</html>
