@@ -38,6 +38,9 @@ def get_prices(tickers):
 
     return prices
 
+@app.get("/test")
+def test():
+    return {"status": "ok"}
 
 @app.get("/", response_class=HTMLResponse)
 def dashboard(request: Request):
