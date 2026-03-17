@@ -63,64 +63,42 @@ def ask_llm(prompt):
 
 # ---------------- FOREX DATA ----------------
 
-def get_forex_data(pair, timeframe=TIMEFRAME):
-    try:
-        print(f"Téléchargement de {pair} avec timeframe {timeframe}...")
-        df = yf.download(pair, period=PERIOD, interval=timeframe, progress=False)
-        
-        if df.empty:
-            print(f"Aucune donnée reçue pour {pair}")
-            return None
-        
-        # S'assurer que close est une Series propre
-        close = df["Close"].squeeze()
-        
-        # Calculer RSI avec vérification
-        try:
-            df["RSI"] = ta.momentum.RSIIndicator(close=close, window=14).rsi()
-        except Exception as e:
-            print(f"Erreur RSI: {e}")
-            df["RSI"] = 50  # Valeur par défaut
-        
-        # Calculer MACD avec vérification  
-        try:
-            df["MACD"] = ta.trend.MACD(close=close, window_slow=26, window_fast=12, window_sign=9).macd()
-        except Exception as e:
-            print(f"Erreur MACD: {e}")
-            df["MACD"] = 0  # Valeur par défaut
-        
-        return df.dropna()
-        
-    except Exception as e:
-        print(f"Erreur téléchargement données forex: {e}")
-        return None
+def get_forex_data(pair):
+
+    df=yf.download(pair,period=PERIOD,interval=TIMEFRAME)
+
+    close=df["Close"]
+
+    df["RSI"]=ta.momentum.RSIIndicator(close=close).rsi()
+    df["MACD"]=ta.trend.MACD(close=close).macd()
+
+    return df.dropna()
 
 # ---------------- FOREX ROUTE ----------------
 
 @app.route("/forex")
+
 def forex():
-    pair = request.args.get("pair", PAIRS[0])
-    timeframe = request.args.get("timeframe", TIMEFRAME)
-    
-    df = get_forex_data(pair, timeframe)
-    
-    if df is None or df.empty:
-        return f"<div style='padding:20px;color:red;'>Erreur: Impossible de charger les données pour {pair}</div>"
-    
-    candles = []
-    
-    for i, row in df.iterrows():
+
+    pair=request.args.get("pair",PAIRS[0])
+
+    df=get_forex_data(pair)
+
+    candles=[]
+
+    for i,row in df.iterrows():
+
         candles.append({
-            "x": i.strftime("%H:%M"),
-            "o": float(row["Open"]),
-            "h": float(row["High"]),
-            "l": float(row["Low"]),
-            "c": float(row["Close"])
+            "x":i.strftime("%H:%M"),
+            "o":float(row["Open"]),
+            "h":float(row["High"]),
+            "l":float(row["Low"]),
+            "c":float(row["Close"])
         })
-    
-    rsi = list(df["RSI"].fillna(50))  # Remplacer NaN par 50
-    macd = list(df["MACD"].fillna(0))  # Remplacer NaN par 0
-    labels = [d["x"] for d in candles]
+
+    rsi=list(df["RSI"])
+    macd=list(df["MACD"])
+    labels=[d["x"] for d in candles]
 
     html="""
 
