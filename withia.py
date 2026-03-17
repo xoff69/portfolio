@@ -107,33 +107,30 @@ def forex():
 
     print(f"Forex data loaded: {len(df)} rows")
     
-    candles = []
-    for i, row in df.iterrows():
-        candles.append({
-            "x": i.strftime("%H:%M"),
-            "o": float(row["Open"]),
-            "h": float(row["High"]),
-            "l": float(row["Low"]),
-            "c": float(row["Close"])
-        })
-
-    # Nettoyer les données RSI et MACD
-    rsi_raw = df["RSI"].dropna()
-    macd_raw = df["MACD"].dropna()
+    # Synchroniser toutes les données sur le même index
+    df_clean = df.dropna()  # Supprimer les lignes avec des NaN
     
-    rsi = [round(float(x), 2) for x in rsi_raw if not pd.isna(x)]
-    macd = [round(float(x), 5) for x in macd_raw if not pd.isna(x)]
+    # Créer les structures de données alignées
+    timestamps = []
+    prices = []
+    rsi_data = []
+    macd_data = []
     
-    labels = [d["x"] for d in candles]
+    for i, row in df_clean.iterrows():
+        time_str = i.strftime("%H:%M")
+        timestamps.append(time_str)
+        prices.append(round(float(row["Close"]), 4))
+        rsi_data.append(round(float(row["RSI"]), 2) if not pd.isna(row["RSI"]) else 50)
+        macd_data.append(round(float(row["MACD"]), 5) if not pd.isna(row["MACD"]) else 0)
     
-    print(f"Final data - Candles: {len(candles)}, RSI: {len(rsi)}, MACD: {len(macd)}")
+    print(f"Final aligned data - Points: {len(timestamps)}, Prices: {len(prices)}, RSI: {len(rsi_data)}, MACD: {len(macd_data)}")
 
     return render_template("forex.html",
         pair=pair,
-        candles=candles,
-        labels=labels,
-        rsi=rsi,
-        macd=macd
+        timestamps=timestamps,
+        prices=prices,
+        rsi=rsi_data,
+        macd=macd_data
     )
 
 # ---------------- PORTFOLIO ----------------

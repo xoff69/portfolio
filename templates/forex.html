@@ -1,105 +1,134 @@
 <h3>{{ pair }}</h3>
 
 <div class="forex-debug">
-    <p>Données chargées: {{ candles|length }} bougies</p>
-    <p>RSI points: {{ rsi|length }}</p>
-    <p>MACD points: {{ macd|length }}</p>
+    <p>Données chargées: {{ timestamps|length }} points temporels</p>
+    <p>Prix: {{ prices|length }} | RSI: {{ rsi|length }} | MACD: {{ macd|length }}</p>
 </div>
 
 <div class="chart-container">
-    <h4>Prix (OHLC)</h4>
-    <canvas id="price-chart" width="400" height="200"></canvas>
-</div>
-
-<div class="chart-container">
-    <h4>RSI</h4>
-    <canvas id="rsi-chart" width="400" height="150"></canvas>
-</div>
-
-<div class="chart-container">
-    <h4>MACD</h4>
-    <canvas id="macd-chart" width="400" height="150"></canvas>
+    <h4>Analyse Forex Complète</h4>
+    <canvas id="forex-main-chart" width="800" height="400"></canvas>
 </div>
 
 <script>
-console.log('Forex data loading...');
-const candleData = {{ candles|tojson }};
-const labels = {{ labels|tojson }};
+console.log('=== Forex Data Debug ===');
+const timestamps = {{ timestamps|tojson }};
+const prices = {{ prices|tojson }};
 const rsiData = {{ rsi|tojson }};
 const macdData = {{ macd|tojson }};
 
-console.log('Candles:', candleData.length);
-console.log('Labels:', labels.length);
-console.log('RSI:', rsiData.length);
-console.log('MACD:', macdData.length);
-
-// Graphique de prix simplifié (ligne des prix de clôture)
-const priceData = candleData.map(c => c.c);
+console.log('Timestamps:', timestamps);
+console.log('Prices:', prices);
+console.log('RSI:', rsiData);
+console.log('MACD:', macdData);
 
 try {
-    new Chart(document.getElementById("price-chart"), {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Prix de clôture',
-                data: priceData,
-                borderColor: 'blue',
-                backgroundColor: 'rgba(0,0,255,0.1)',
-                fill: false
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false
-        }
-    });
+    const ctx = document.getElementById('forex-main-chart').getContext('2d');
     
-    new Chart(document.getElementById("rsi-chart"), {
+    new Chart(ctx, {
         type: 'line',
         data: {
-            labels: labels,
-            datasets: [{
-                label: 'RSI',
-                data: rsiData,
-                borderColor: 'orange',
-                backgroundColor: 'rgba(255,165,0,0.1)',
-                fill: false
-            }]
+            labels: timestamps,
+            datasets: [
+                {
+                    label: 'Prix ({{ pair }})',
+                    data: prices,
+                    borderColor: 'blue',
+                    backgroundColor: 'rgba(0,0,255,0.1)',
+                    yAxisID: 'y-price',
+                    fill: false,
+                    tension: 0.1
+                },
+                {
+                    label: 'RSI',
+                    data: rsiData,
+                    borderColor: 'orange',
+                    backgroundColor: 'rgba(255,165,0,0.1)',
+                    yAxisID: 'y-rsi',
+                    fill: false,
+                    tension: 0.1
+                },
+                {
+                    label: 'MACD',
+                    data: macdData,
+                    borderColor: 'green',
+                    backgroundColor: 'rgba(0,255,0,0.1)',
+                    yAxisID: 'y-macd',
+                    fill: false,
+                    tension: 0.1
+                }
+            ]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Analyse Technique - ' + '{{ pair }}'
+                },
+                legend: {
+                    display: true,
+                    position: 'top'
+                }
+            },
             scales: {
-                y: {
+                x: {
+                    display: true,
+                    title: {
+                        display: true,
+                        text: 'Temps (H:M)'
+                    }
+                },
+                'y-price': {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: {
+                        display: true,
+                        text: 'Prix',
+                        color: 'blue'
+                    },
+                    ticks: {
+                        color: 'blue'
+                    }
+                },
+                'y-rsi': {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'RSI (0-100)',
+                        color: 'orange'
+                    },
+                    ticks: {
+                        color: 'orange'
+                    },
                     min: 0,
-                    max: 100
+                    max: 100,
+                    grid: {
+                        drawOnChartArea: false
+                    }
+                },
+                'y-macd': {
+                    type: 'linear',
+                    display: false, // Caché pour simplifier, mais données présentes
+                    position: 'right'
                 }
             }
         }
     });
     
-    new Chart(document.getElementById("macd-chart"), {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'MACD',
-                data: macdData,
-                borderColor: 'green',
-                backgroundColor: 'rgba(0,255,0,0.1)',
-                fill: false
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false
-        }
-    });
-    
-    console.log('Graphiques créés avec succès');
+    console.log('Graphique forex créé avec succès');
 } catch (error) {
-    console.error('Erreur création graphiques:', error);
-    document.querySelector('#price-chart').parentNode.innerHTML = '<p>Erreur: ' + error.message + '</p>';
+    console.error('Erreur création graphique forex:', error);
+    document.querySelector('#forex-main-chart').parentNode.innerHTML = 
+        '<p style="color:red;padding:20px;background:#fee;">Erreur graphique: ' + error.message + '</p>' +
+        '<pre>' + JSON.stringify({timestamps:timestamps.length, prices:prices.length, rsi:rsiData.length, macd:macdData.length}, null, 2) + '</pre>';
 }
 </script>
