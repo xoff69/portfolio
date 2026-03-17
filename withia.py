@@ -67,7 +67,8 @@ def get_forex_data(pair):
 
     df=yf.download(pair,period=PERIOD,interval=TIMEFRAME)
 
-    close=df["Close"]
+    # S'assurer que close est 1-dimensionnel
+    close=df["Close"].squeeze()
 
     df["RSI"]=ta.momentum.RSIIndicator(close=close).rsi()
     df["MACD"]=ta.trend.MACD(close=close).macd()
