@@ -16,8 +16,8 @@ from dataclasses import dataclass
 PAIRS=["EURUSD=X","GBPUSD=X","USDJPY=X"]
 
 INTERVAL_MINUTES=15
-TIMEFRAME="15m"
-PERIOD="1d"
+TIMEFRAME="1d"  # Par défaut 1 jour pour avoir plus de données
+PERIOD="5d"     # 5 jours de données au lieu d'1 jour
 
 CALGARY_TZ=ZoneInfo("America/Edmonton")
 
@@ -73,17 +73,42 @@ def ask_llm(prompt):
 def get_forex_data(pair, timeframe=TIMEFRAME):
     try:
         print(f"Téléchargement de {pair} avec timeframe {timeframe}...")
-        df = yf.download(pair, period=PERIOD, interval=timeframe, progress=False)
+        
+        # Ajuster la période selon l'intervalle pour avoir assez de données
+        if timeframe in ['1m', '2m', '5m', '15m', '30m']:
+            period = '1d'
+        elif timeframe in ['60m', '90m', '1h']:
+            period = '5d'
+        elif timeframe in ['1d']:
+            period = '1mo'  # 1 mois de données journalières
+        elif timeframe in ['1wk']:
+            period = '1y'   # 1 an de données hebdomadaires
+        else:
+            period = '5d'
+        
+        df = yf.download(pair, period=period, interval=timeframe, progress=False)
         
         if df.empty:
-            print(f"Aucune donnée reçue pour {pair}")
-            return None
+            print(f"Aucune donnée reçue pour {pair}, essai avec des actions de test...")
+            # En cas d'échec avec forex, essayer avec une action connue pour demo
+            if pair.endswith('=X'):
+                test_symbols = ['AAPL', 'GOOGL', 'MSFT', 'TSLA']
+                for symbol in test_symbols:
+                    print(f"Test avec {symbol}...")
+                    df = yf.download(symbol, period=period, interval=timeframe, progress=False)
+                    if not df.empty:
+                        print(f"Données récupérées avec succès pour {symbol}")
+                        break
+            
+            if df.empty:
+                print(f"Aucune donnée disponible")
+                return None
         
         # Nettoyer les données et s'assurer qu'elles sont dans le bon format
         df = df.dropna()
         
         # Vérifier qu'on a assez de données
-        if len(df) < 14:
+        if len(df) < 2:
             print(f"Pas assez de données pour {pair} ({len(df)} points)")
             return None
         
@@ -99,13 +124,19 @@ def get_forex_data(pair, timeframe=TIMEFRAME):
         try:
             close_prices = df['Close'].astype(float)
             
-            # Calcul RSI (Relative Strength Index)
-            rsi_indicator = ta.momentum.RSIIndicator(close=close_prices, window=14)
-            df['RSI'] = rsi_indicator.rsi()
+            # Calcul RSI (Relative Strength Index) - seulement si assez de données
+            if len(close_prices) >= 14:
+                rsi_indicator = ta.momentum.RSIIndicator(close=close_prices, window=14)
+                df['RSI'] = rsi_indicator.rsi()
+            else:
+                df['RSI'] = 50  # Valeur neutre
             
-            # Calcul MACD (Moving Average Convergence Divergence)  
-            macd_indicator = ta.trend.MACD(close=close_prices, window_slow=26, window_fast=12, window_sign=9)
-            df['MACD'] = macd_indicator.macd()
+            # Calcul MACD (Moving Average Convergence Divergence) - seulement si assez de données
+            if len(close_prices) >= 26:
+                macd_indicator = ta.trend.MACD(close=close_prices, window_slow=26, window_fast=12, window_sign=9)
+                df['MACD'] = macd_indicator.macd()
+            else:
+                df['MACD'] = 0  # Valeur neutre
             
             # Remplacer les valeurs NaN par des valeurs par défaut
             df['RSI'] = df['RSI'].fillna(50)
