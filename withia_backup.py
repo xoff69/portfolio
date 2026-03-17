@@ -20,10 +20,10 @@ PERIOD="1d"
 
 CALGARY_TZ=ZoneInfo("America/Edmonton")
 
+app=Flask(__name__)
+
 # Variable globale pour stocker l'heure du dernier refresh
 last_refresh_time = None
-
-app=Flask(__name__)
 
 # ---------------- PORTFOLIO ----------------
 
@@ -99,7 +99,6 @@ def forex():
     timeframe=request.args.get("timeframe",TIMEFRAME)
     show_rsi=request.args.get("rsi","true").lower() == "true"
     show_macd=request.args.get("macd","true").lower() == "true"
-    show_support=request.args.get("support","false").lower() == "true"
     
     df=get_forex_data(pair, timeframe)
     
@@ -137,6 +136,7 @@ def forex():
 # ---------------- PORTFOLIO ----------------
 
 @app.route("/portfolio")
+
 def portfolio_view():
     tickers=[p.ticker for p in portfolio]
     
@@ -214,7 +214,9 @@ Analyse les performances et donne des conseils en français.
     ai=ask_llm(prompt)
 
     html="""
+
 <style>
+
 table{
 border-collapse:collapse;
 width:100%;
@@ -234,11 +236,13 @@ padding:20px;
 border-radius:10px;
 margin-top:20px
 }
+
 </style>
 
 <h2>Portfolio</h2>
 
 <table>
+
 <tr>
 <th>Name</th>
 <th>Qty</th>
@@ -248,7 +252,9 @@ margin-top:20px
 </tr>
 
 {% for r in rows %}
+
 <tr>
+
 <td>{{r.name}}</td>
 <td>{{r.qty}}</td>
 <td>{{r.price}}</td>
@@ -260,13 +266,17 @@ margin-top:20px
 <td class="{% if r.perf>0 %}green{% else %}red{% endif %}">
 {{r.perf}} %
 </td>
+
 </tr>
+
 {% endfor %}
+
 </table>
 
 <div>
 {{ai|safe}}
 </div>
+
 """
 
     return render_template_string(html,rows=rows,ai=ai)
@@ -274,7 +284,147 @@ margin-top:20px
 # ---------------- DASHBOARD ----------------
 
 @app.route("/")
+
 def dashboard():
+    return render_template('dashboard.html', pairs=PAIRS)
+
+<style>
+
+body{
+font-family:Arial;
+margin:40px
+}
+
+.tabs{
+margin-bottom:20px
+}
+
+.tab{
+display:inline-block;
+padding:10px 20px;
+background:#eee;
+cursor:pointer;
+margin-right:10px
+}
+
+</style>
+
+<script>
+
+function openTab(name){
+
+document.getElementById("forex").style.display="none"
+document.getElementById("portfolio").style.display="none"
+
+document.getElementById(name).style.display="block"
+
+}
+
+</script>
+
+</head>
+
+<body>
+
+<h1>Trading Dashboard</h1>
+
+<div class="tabs">
+<div class="tab" onclick="openTab('forex')">📈 Forex</div>
+<div class="tab" onclick="openTab('portfolio')">💼 Portfolio</div>
+</div>
+
+<div id="forex">
+    <div style="margin-bottom: 20px; padding: 20px; background: #f8f9fa; border-radius: 8px;">
+        <div style="margin-bottom: 15px;">
+            <label style="margin-right: 10px; font-weight: bold;">Paire de devises:</label>
+            <select id="pairSelect" onchange="loadForex()" style="padding: 8px; border-radius: 4px;">
+                {% for p in pairs %}
+                <option>{{p}}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div style="margin-bottom: 15px;">
+            <label style="margin-right: 10px; font-weight: bold;">Période:</label>
+            <select id="timeframeSelect" onchange="loadForex()" style="padding: 8px; border-radius: 4px;">
+                <option value="15m">15 minutes</option>
+                <option value="30m">30 minutes</option>
+                <option value="1h">1 heure</option>
+                <option value="4h">4 heures</option>
+                <option value="1d" selected>1 jour</option>
+            </select>
+        </div>
+        
+        <div>
+            <label style="margin-right: 10px; font-weight: bold;">Indicateurs:</label>
+            <label style="margin-right: 15px;"><input type="checkbox" id="showRSI" checked onchange="loadForex()"> RSI</label>
+            <label><input type="checkbox" id="showMACD" checked onchange="loadForex()"> MACD</label>
+        </div>
+        
+        <div style="margin-top: 10px; font-size: 14px; color: #666;">
+            <span id="last-refresh">Dernier rafraîchissement: En cours...</span>
+        </div>
+    </div>
+    
+    <div id="forex_content">Sélectionnez une paire de devises...</div>
+</div>
+
+<div id="portfolio" style="display:none">
+
+<iframe src="/portfolio" width="100%" height="700"></iframe>
+
+</div>
+
+<script>
+
+function loadForex(){
+    const pair = document.getElementById('pairSelect').value;
+    const timeframe = document.getElementById('timeframeSelect').value;
+    const showRSI = document.getElementById('showRSI').checked;
+    const showMACD = document.getElementById('showMACD').checked;
+    
+    const params = new URLSearchParams({
+        pair: pair,
+        timeframe: timeframe,
+        rsi: showRSI,
+        macd: showMACD
+    });
+    
+    fetch(`/forex?${params}`)
+    .then(r=>r.text())
+    .then(html=>{
+        document.getElementById("forex_content").innerHTML=html;
+        updateRefreshTime();
+    })
+    .catch(err => {
+        console.error('Erreur:', err);
+        document.getElementById("forex_content").innerHTML = '<div style="color:red;padding:20px;">Erreur lors du chargement</div>';
+    });
+}
+
+function updateRefreshTime() {
+    const now = new Date();
+    const calgaryTime = new Date(now.toLocaleString("en-US", {timeZone: "America/Edmonton"}));
+    document.getElementById('last-refresh').textContent = 'Dernier rafraîchissement: ' + calgaryTime.toLocaleString('fr-CA');
+}
+
+// Rafraîchissement automatique toutes les 5 minutes
+setInterval(function() {
+    if(document.getElementById('forex').style.display !== 'none') {
+        loadForex();
+    }
+}, 5 * 60 * 1000);
+
+loadForex()
+
+</script>
+
+</body>
+
+</html>
+
+"""
+
     return render_template('dashboard.html', pairs=PAIRS)
 
 # ---------------- START ----------------

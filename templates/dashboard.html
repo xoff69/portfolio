@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body{
+            font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin:0;
+            padding:0;
+            background:#f5f7fa;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 40px;
+            margin: 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 300;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px;
+        }
+
+        .tabs{
+            margin-bottom:30px;
+            border-bottom: 3px solid #e1e8ed;
+            padding-bottom: 0;
+        }
+
+        .tab{
+            display:inline-block;
+            padding:15px 30px;
+            background:transparent;
+            cursor:pointer;
+            margin-right:5px;
+            font-weight: 500;
+            color: #657786;
+            border: none;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+            font-size: 16px;
+            border-radius: 8px 8px 0 0;
+        }
+
+        .tab:hover{
+            background: #f1f3f4;
+            color: #1da1f2;
+            transform: translateY(-2px);
+        }
+
+        .tab.active{
+            color: #1da1f2;
+            border-bottom: 3px solid #1da1f2;
+            background: white;
+            box-shadow: 0 -2px 8px rgba(29, 161, 242, 0.1);
+        }
+
+        .tab-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            min-height: 500px;
+            transition: opacity 0.3s ease;
+        }
+
+        .tab-content.hidden {
+            opacity: 0;
+            pointer-events: none;
+            position: absolute;
+            z-index: -1;
+        }
+
+        .forex-controls {
+            margin-bottom: 20px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .forex-controls label {
+            font-weight: 500;
+            color: #495057;
+        }
+
+        .forex-controls select {
+            padding: 12px 20px;
+            border: 2px solid #e1e8ed;
+            border-radius: 8px;
+            font-size: 16px;
+            background: white;
+            cursor: pointer;
+            transition: border-color 0.3s ease;
+        }
+
+        .forex-controls select:focus {
+            outline: none;
+            border-color: #1da1f2;
+            box-shadow: 0 0 0 3px rgba(29, 161, 242, 0.1);
+        }
+
+        .indicators {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .indicator-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #dee2e6;
+            transition: all 0.3s ease;
+        }
+
+        .indicator-checkbox:hover {
+            background: #e3f2fd;
+            border-color: #1da1f2;
+        }
+
+        .indicator-checkbox input[type="checkbox"] {
+            accent-color: #1da1f2;
+        }
+
+        .indicator-checkbox label {
+            margin: 0 !important;
+            cursor: pointer;
+            font-size: 14px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>🚀 Trading Dashboard</h1>
+        <div id="last-refresh" style="font-size: 14px; opacity: 0.8; margin-top: 10px;">
+            Dernier rafraîchissement: <span id="refresh-time">En cours...</span>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="tabs">
+            <div class="tab" onclick="openTab('forex')">📈 Forex</div>
+            <div class="tab" onclick="openTab('portfolio')">💼 Portfolio</div>
+        </div>
+
+        <div id="forex" class="tab-content">
+            <div class="forex-controls">
+                <div>
+                    <label>Paire de devises:</label>
+                    <select id="pairSelect" onchange="loadForex()">
+                        {% for p in pairs %}
+                        <option>{{p}}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div>
+                    <label>Période:</label>
+                    <select id="timeframeSelect" onchange="loadForex()">
+                        <option value="15m">15 minutes</option>
+                        <option value="30m">30 minutes</option>
+                        <option value="1h">1 heure</option>
+                        <option value="4h">4 heures</option>
+                        <option value="1d" selected>1 jour</option>
+                        <option value="1wk">1 semaine</option>
+                    </select>
+                </div>
+                
+                <div class="indicators">
+                    <label style="margin-right: 10px;">Indicateurs:</label>
+                    
+                    <div class="indicator-checkbox">
+                        <input type="checkbox" id="showRSI" checked onchange="loadForex()">
+                        <label for="showRSI">RSI</label>
+                    </div>
+                    
+                    <div class="indicator-checkbox">
+                        <input type="checkbox" id="showMACD" checked onchange="loadForex()">
+                        <label for="showMACD">MACD</label>
+                    </div>
+                    
+                    <div class="indicator-checkbox">
+                        <input type="checkbox" id="showSupport" onchange="loadForex()">
+                        <label for="showSupport">Support/Résistance</label>
+                    </div>
+                </div>
+            </div>
+            <div id="forex_content">
+                <div style="text-align: center; padding: 40px; color: #6c757d;">
+                    Sélectionnez une paire de devises pour afficher le graphique
+                </div>
+            </div>
+        </div>
+
+        <div id="portfolio" class="tab-content hidden">
+            <iframe src="/portfolio" width="100%" height="700" style="border: none; border-radius: 8px;"></iframe>
+        </div>
+    </div>
+
+    <script>
+        function updateRefreshTime() {
+            const now = new Date();
+            const calgaryTime = new Date(now.toLocaleString("en-US", {timeZone: "America/Edmonton"}));
+            document.getElementById('refresh-time').textContent = calgaryTime.toLocaleString('fr-CA', {
+                year: 'numeric',
+                month: '2-digit', 
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                timeZoneName: 'short'
+            });
+        }
+
+        function loadForex(){
+            const pair = document.getElementById('pairSelect').value;
+            const timeframe = document.getElementById('timeframeSelect').value;
+            const showRSI = document.getElementById('showRSI').checked;
+            const showMACD = document.getElementById('showMACD').checked;
+            const showSupport = document.getElementById('showSupport').checked;
+            
+            const params = new URLSearchParams({
+                pair: pair,
+                timeframe: timeframe,
+                rsi: showRSI,
+                macd: showMACD,
+                support: showSupport
+            });
+            
+            fetch(`/forex?${params}`)
+            .then(r=>r.text())
+            .then(html=>{
+                document.getElementById("forex_content").innerHTML=html;
+                updateRefreshTime();
+            })
+            .catch(err => {
+                console.error('Erreur lors du chargement des données forex:', err);
+                document.getElementById("forex_content").innerHTML = '<div style="text-align: center; padding: 20px; color: #dc3545;">Erreur lors du chargement des données</div>';
+            });
+        }
+
+        function openTab(name){
+            // Cacher tous les contenus d'onglet
+            const contents = document.querySelectorAll('.tab-content');
+            contents.forEach(content => {
+                content.classList.add('hidden');
+            });
+            
+            // Désactiver tous les onglets
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Afficher le contenu sélectionné
+            document.getElementById(name).classList.remove('hidden');
+            
+            // Activer l'onglet cliqué
+            event.target.classList.add('active');
+            
+            // Charger les données forex si c'est l'onglet forex
+            if(name === 'forex') {
+                loadForex();
+            }
+        }
+
+        // Rafraîchissement automatique toutes les 5 minutes
+        function startAutoRefresh() {
+            setInterval(function() {
+                const activeTab = document.querySelector('.tab.active');
+                if (activeTab && activeTab.textContent.includes('Forex')) {
+                    loadForex();
+                }
+            }, 5 * 60 * 1000); // 5 minutes en millisecondes
+        }
+
+        // Initialiser le premier onglet comme actif
+        window.onload = function() {
+            document.querySelector('.tab').classList.add('active');
+            loadForex(); // Charger les données forex par défaut
+            startAutoRefresh(); // Démarrer le rafraîchissement automatique
+        }
+    </script>
+</body>
+</html>
