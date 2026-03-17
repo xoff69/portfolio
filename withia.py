@@ -4,6 +4,7 @@ import sqlite3
 import threading
 import time
 import requests
+import pandas as pd
 
 from datetime import datetime, UTC
 from zoneinfo import ZoneInfo
@@ -96,11 +97,16 @@ def get_forex_data(pair):
 @app.route("/forex")
 def forex():
     pair = request.args.get("pair", PAIRS[0])
+    print(f"Loading forex data for: {pair}")
+    
     df = get_forex_data(pair)
     
     if df is None:
-        return "<p>Erreur: Impossible de charger les données forex</p>"
+        error_msg = f"<div style='padding:20px;background:#fee;border:1px solid #f00;'>Erreur: Impossible de charger les données forex pour {pair}</div>"
+        return error_msg
 
+    print(f"Forex data loaded: {len(df)} rows")
+    
     candles = []
     for i, row in df.iterrows():
         candles.append({
@@ -111,9 +117,16 @@ def forex():
             "c": float(row["Close"])
         })
 
-    rsi = list(df["RSI"].dropna())
-    macd = list(df["MACD"].dropna())
+    # Nettoyer les données RSI et MACD
+    rsi_raw = df["RSI"].dropna()
+    macd_raw = df["MACD"].dropna()
+    
+    rsi = [round(float(x), 2) for x in rsi_raw if not pd.isna(x)]
+    macd = [round(float(x), 5) for x in macd_raw if not pd.isna(x)]
+    
     labels = [d["x"] for d in candles]
+    
+    print(f"Final data - Candles: {len(candles)}, RSI: {len(rsi)}, MACD: {len(macd)}")
 
     return render_template("forex.html",
         pair=pair,

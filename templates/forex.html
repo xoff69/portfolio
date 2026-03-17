@@ -1,56 +1,105 @@
 <h3>{{ pair }}</h3>
 
-<canvas id="candles"></canvas>
-<canvas id="rsi"></canvas>
-<canvas id="macd"></canvas>
+<div class="forex-debug">
+    <p>Données chargées: {{ candles|length }} bougies</p>
+    <p>RSI points: {{ rsi|length }}</p>
+    <p>MACD points: {{ macd|length }}</p>
+</div>
 
-<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial"></script>
+<div class="chart-container">
+    <h4>Prix (OHLC)</h4>
+    <canvas id="price-chart" width="400" height="200"></canvas>
+</div>
+
+<div class="chart-container">
+    <h4>RSI</h4>
+    <canvas id="rsi-chart" width="400" height="150"></canvas>
+</div>
+
+<div class="chart-container">
+    <h4>MACD</h4>
+    <canvas id="macd-chart" width="400" height="150"></canvas>
+</div>
+
 <script>
+console.log('Forex data loading...');
 const candleData = {{ candles|tojson }};
 const labels = {{ labels|tojson }};
 const rsiData = {{ rsi|tojson }};
 const macdData = {{ macd|tojson }};
 
-new Chart(
-    document.getElementById("candles"),
-    {
-        type:'candlestick',
-        data:{
-            datasets:[{
-                label:'Price',
-                data:candleData
-            }]
-        }
-    }
-);
+console.log('Candles:', candleData.length);
+console.log('Labels:', labels.length);
+console.log('RSI:', rsiData.length);
+console.log('MACD:', macdData.length);
 
-new Chart(
-    document.getElementById("rsi"),
-    {
-        type:'line',
-        data:{
+// Graphique de prix simplifié (ligne des prix de clôture)
+const priceData = candleData.map(c => c.c);
+
+try {
+    new Chart(document.getElementById("price-chart"), {
+        type: 'line',
+        data: {
             labels: labels,
-            datasets:[{
-                label:'RSI',
+            datasets: [{
+                label: 'Prix de clôture',
+                data: priceData,
+                borderColor: 'blue',
+                backgroundColor: 'rgba(0,0,255,0.1)',
+                fill: false
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false
+        }
+    });
+    
+    new Chart(document.getElementById("rsi-chart"), {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'RSI',
                 data: rsiData,
-                borderColor:'orange'
+                borderColor: 'orange',
+                backgroundColor: 'rgba(255,165,0,0.1)',
+                fill: false
             }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    min: 0,
+                    max: 100
+                }
+            }
         }
-    }
-);
-
-new Chart(
-    document.getElementById("macd"),
-    {
-        type:'line',
-        data:{
+    });
+    
+    new Chart(document.getElementById("macd-chart"), {
+        type: 'line',
+        data: {
             labels: labels,
-            datasets:[{
-                label:'MACD',
+            datasets: [{
+                label: 'MACD',
                 data: macdData,
-                borderColor:'green'
+                borderColor: 'green',
+                backgroundColor: 'rgba(0,255,0,0.1)',
+                fill: false
             }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false
         }
-    }
-);
+    });
+    
+    console.log('Graphiques créés avec succès');
+} catch (error) {
+    console.error('Erreur création graphiques:', error);
+    document.querySelector('#price-chart').parentNode.innerHTML = '<p>Erreur: ' + error.message + '</p>';
+}
 </script>
