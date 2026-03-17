@@ -1,0 +1,56 @@
+<h3>{{ pair }}</h3>
+
+<canvas id="candles"></canvas>
+<canvas id="rsi"></canvas>
+<canvas id="macd"></canvas>
+
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial"></script>
+<script>
+const candleData = {{ candles|tojson }};
+const labels = {{ labels|tojson }};
+const rsiData = {{ rsi|tojson }};
+const macdData = {{ macd|tojson }};
+
+new Chart(
+    document.getElementById("candles"),
+    {
+        type:'candlestick',
+        data:{
+            datasets:[{
+                label:'Price',
+                data:candleData
+            }]
+        }
+    }
+);
+
+new Chart(
+    document.getElementById("rsi"),
+    {
+        type:'line',
+        data:{
+            labels: labels,
+            datasets:[{
+                label:'RSI',
+                data: rsiData,
+                borderColor:'orange'
+            }]
+        }
+    }
+);
+
+new Chart(
+    document.getElementById("macd"),
+    {
+        type:'line',
+        data:{
+            labels: labels,
+            datasets:[{
+                label:'MACD',
+                data: macdData,
+                borderColor:'green'
+            }]
+        }
+    }
+);
+</script>

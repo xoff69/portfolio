@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Trading Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <h1>Trading Dashboard</h1>
+
+    <!-- Heure Calgary -->
+    <div class="time-display">
+        <p>Dernier refresh: <span id="calgary-time">{{ calgary_time }}</span></p>
+    </div>
+
+    <div class="tabs">
+        <div class="tab" onclick="openTab('forex')">Forex</div>
+        <div class="tab" onclick="openTab('portfolio')">Portfolio</div>
+    </div>
+
+    <div id="forex">
+        <select onchange="loadForex(this.value)">
+            {% for p in pairs %}
+            <option>{{ p }}</option>
+            {% endfor %}
+        </select>
+        <div id="forex_content"></div>
+    </div>
+
+    <div id="portfolio" style="display:none">
+        <iframe src="/portfolio" width="100%" height="700"></iframe>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>

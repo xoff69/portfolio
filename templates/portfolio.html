@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Portfolio</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <h2>Portfolio</h2>
+
+    <table>
+        <tr>
+            <th>Name</th>
+            <th>Qty</th>
+            <th>Price</th>
+            <th>Profit</th>
+            <th>%</th>
+        </tr>
+
+        {% for r in rows %}
+        <tr>
+            <td>{{ r.name }}</td>
+            <td>{{ r.qty }}</td>
+            <td>{{ r.price }}</td>
+            <td class="{% if r.profit>0 %}green{% else %}red{% endif %}">
+                {{ r.profit }}
+            </td>
+            <td class="{% if r.perf>0 %}green{% else %}red{% endif %}">
+                {{ r.perf }} %
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+
+    <div>
+        {{ ai|safe }}
+    </div>
+</body>
+</html>
