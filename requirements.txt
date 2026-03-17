@@ -2,3 +2,6 @@ fastapi
 uvicorn
 yfinance
 jinja2
+ta
+requests
+flask

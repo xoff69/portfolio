@@ -5,7 +5,7 @@ import threading
 import time
 import requests
 
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from flask import Flask, render_template_string, request
 from dataclasses import dataclass
@@ -63,11 +63,14 @@ def ask_llm(prompt):
 
 # ---------------- FOREX DATA ----------------
 
-def get_forex_data(pair):
+def get_forex_data(pair, timeframe=TIMEFRAME):
 
-    df=yf.download(pair,period=PERIOD,interval=TIMEFRAME)
-
-    close=df["Close"]
+    df=yf.download(pair,period=PERIOD,interval=timeframe)
+    
+    # S'assurer que close est une Series 1D
+    close = df["Close"].squeeze()
+    if close.ndim > 1:
+        close = close.iloc[:, 0]  # Prendre la première colonne si 2D
 
     df["RSI"]=ta.momentum.RSIIndicator(close).rsi()
     df["MACD"]=ta.trend.MACD(close).macd()
@@ -81,8 +84,12 @@ def get_forex_data(pair):
 def forex():
 
     pair=request.args.get("pair",PAIRS[0])
+    timeframe=request.args.get("timeframe",TIMEFRAME)
+    show_rsi=request.args.get("rsi","true").lower() == "true"
+    show_macd=request.args.get("macd","true").lower() == "true"
+    show_support=request.args.get("support","false").lower() == "true"
 
-    df=get_forex_data(pair)
+    df=get_forex_data(pair, timeframe)
 
     candles=[]
 
@@ -100,74 +107,119 @@ def forex():
     macd=list(df["MACD"])
     labels=[d["x"] for d in candles]
 
-    html="""
+    # Construire le HTML conditionnel
+    rsi_canvas = '<canvas id="rsi" style="margin-top: 20px;"></canvas>' if show_rsi else ''
+    macd_canvas = '<canvas id="macd" style="margin-top: 20px;"></canvas>' if show_macd else ''
+    
+    rsi_chart = f'''
+    new Chart(
+    document.getElementById("rsi"),
+    {{
+    type:'line',
+    data:{{
+    labels: {labels},
+    datasets:[{{
+    label:'RSI',
+    data: {rsi},
+    borderColor:'orange',
+    backgroundColor: 'rgba(255, 165, 0, 0.1)',
+    fill: true
+    }}]
+    }},
+    options: {{
+        responsive: true,
+        scales: {{
+            y: {{
+                min: 0,
+                max: 100,
+                grid: {{
+                    color: function(context) {{
+                        if (context.tick.value === 30 || context.tick.value === 70) {{
+                            return '#ff6b6b';
+                        }}
+                        return '#e0e0e0';
+                    }}
+                }}
+            }}
+        }}
+    }}
+    }}
+    )''' if show_rsi else ''
+    
+    macd_chart = f'''
+    new Chart(
+    document.getElementById("macd"),
+    {{
+    type:'line',
+    data:{{
+    labels: {labels},
+    datasets:[{{
+    label:'MACD',
+    data: {macd},
+    borderColor:'green',
+    backgroundColor: 'rgba(0, 128, 0, 0.1)',
+    fill: true
+    }}]
+    }},
+    options: {{
+        responsive: true
+    }}
+    }}
+    )''' if show_macd else ''
 
-<h3>{{pair}}</h3>
+    html=f'''
 
-<canvas id="candles"></canvas>
-
-<canvas id="rsi"></canvas>
-
-<canvas id="macd"></canvas>
+<div style="padding: 20px;">
+    <h3 style="color: #495057; margin-bottom: 20px;">{pair} - {timeframe}</h3>
+    
+    <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+        <canvas id="candles"></canvas>
+    </div>
+    
+    {rsi_canvas}
+    {macd_canvas}
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial"></script>
 
 <script>
 
-const candleData = {{candles|tojson}}
+const candleData = {candles}
 
 new Chart(
 document.getElementById("candles"),
-{
+{{
 type:'candlestick',
-data:{
-datasets:[{
+data:{{
+datasets:[{{
 label:'Price',
-data:candleData
-}]
-}
-})
+data:candleData,
+backgroundColor: function(context) {{
+    const candle = candleData[context.dataIndex];
+    return candle.c >= candle.o ? '#26a69a' : '#ef5350';
+}}
+}}]
+}},
+options: {{
+    responsive: true,
+    plugins: {{
+        title: {{
+            display: true,
+            text: '{pair} - Prix'
+        }}
+    }}
+}}
+}})
 
-new Chart(
-document.getElementById("rsi"),
-{
-type:'line',
-data:{
-labels: {{labels|tojson}},
-datasets:[{
-label:'RSI',
-data: {{rsi|tojson}},
-borderColor:'orange'
-}]
-}
-})
+{rsi_chart}
 
-new Chart(
-document.getElementById("macd"),
-{
-type:'line',
-data:{
-labels: {{labels|tojson}},
-datasets:[{
-label:'MACD',
-data: {{macd|tojson}},
-borderColor:'green'
-}]
-}
-})
+{macd_chart}
 
 </script>
 
-"""
+'''
 
-    return render_template_string(
-        html,
-        pair=pair,
-        candles=candles,
-        labels=labels,
-        rsi=rsi,
-        macd=macd
-    )
+    return html
 
 # ---------------- PORTFOLIO ----------------
 
@@ -176,12 +228,17 @@ borderColor:'green'
 def portfolio_view():
 
     tickers=[p.ticker for p in portfolio]
-
-    data=yf.download(
-        tickers,
-        period="1d",
-        group_by="ticker",
-        progress=False)
+    
+    # Télécharger les données avec gestion d'erreur
+    try:
+        data=yf.download(
+            tickers,
+            period="1d",
+            group_by="ticker",
+            progress=False)
+    except Exception as e:
+        print(f"Error downloading data: {e}")
+        return f"<div>Erreur lors du téléchargement des données: {e}</div>"
 
     rows=[]
 
@@ -190,7 +247,21 @@ def portfolio_view():
 
     for p in portfolio:
 
-        price=float(data[p.ticker]["Close"].iloc[-1])
+        try:
+            # Essayer d'obtenir le prix actuel
+            if len(tickers) == 1:
+                # Si un seul ticker, la structure de données est différente
+                price = float(data["Close"].iloc[-1])
+            else:
+                # Si plusieurs tickers, utiliser la structure groupée
+                if p.ticker in data.columns.get_level_values(0):
+                    price = float(data[p.ticker]["Close"].iloc[-1])
+                else:
+                    print(f"Warning: Ticker {p.ticker} not found in data")
+                    continue
+        except (KeyError, IndexError, ValueError, AttributeError) as e:
+            print(f"Warning: Cannot get price for {p.ticker} ({p.name}): {e}")
+            continue  # Skip this position if we can't get the price
 
         invested=p.quantity*p.buying_price
         value=p.quantity*price
@@ -241,7 +312,8 @@ Return ONLY HTML like this:
 
 """
 
-    ai=ask_llm(prompt)
+    # ai=ask_llm(prompt)  # Commenté temporairement
+    ai = "<div class='ai'><h3>Portfolio AI Analysis</h3><p>Analyse AI temporairement désactivée</p></div>"
 
     html="""
 
@@ -328,20 +400,144 @@ def dashboard():
 <style>
 
 body{
-font-family:Arial;
-margin:40px
+font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+margin:0;
+padding:0;
+background:#f5f7fa;
+}
+
+.header {
+background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+color: white;
+padding: 20px 40px;
+margin: 0;
+box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.header h1 {
+margin: 0;
+font-size: 28px;
+font-weight: 300;
+}
+
+.container {
+max-width: 1200px;
+margin: 0 auto;
+padding: 40px;
 }
 
 .tabs{
-margin-bottom:20px
+margin-bottom:30px;
+border-bottom: 3px solid #e1e8ed;
+padding-bottom: 0;
 }
 
 .tab{
 display:inline-block;
-padding:10px 20px;
-background:#eee;
+padding:15px 30px;
+background:transparent;
 cursor:pointer;
-margin-right:10px
+margin-right:5px;
+font-weight: 500;
+color: #657786;
+border: none;
+border-bottom: 3px solid transparent;
+transition: all 0.3s ease;
+font-size: 16px;
+border-radius: 8px 8px 0 0;
+}
+
+.tab:hover{
+background: #f1f3f4;
+color: #1da1f2;
+transform: translateY(-2px);
+}
+
+.tab.active{
+color: #1da1f2;
+border-bottom: 3px solid #1da1f2;
+background: white;
+box-shadow: 0 -2px 8px rgba(29, 161, 242, 0.1);
+}
+
+.tab-content {
+background: white;
+padding: 30px;
+border-radius: 12px;
+box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+min-height: 500px;
+transition: opacity 0.3s ease;
+}
+
+.tab-content.hidden {
+opacity: 0;
+pointer-events: none;
+position: absolute;
+z-index: -1;
+}
+
+.forex-controls {
+margin-bottom: 20px;
+padding: 20px;
+background: #f8f9fa;
+border-radius: 8px;
+display: flex;
+flex-wrap: wrap;
+align-items: center;
+gap: 20px;
+}
+
+.forex-controls label {
+font-weight: 500;
+color: #495057;
+}
+
+.forex-controls select {
+padding: 12px 20px;
+border: 2px solid #e1e8ed;
+border-radius: 8px;
+font-size: 16px;
+background: white;
+cursor: pointer;
+transition: border-color 0.3s ease;
+}
+
+.forex-controls select:focus {
+outline: none;
+border-color: #1da1f2;
+box-shadow: 0 0 0 3px rgba(29, 161, 242, 0.1);
+}
+
+.indicators {
+display: flex;
+gap: 15px;
+flex-wrap: wrap;
+}
+
+.indicator-checkbox {
+display: flex;
+align-items: center;
+gap: 8px;
+padding: 8px 12px;
+background: white;
+border-radius: 6px;
+border: 1px solid #dee2e6;
+transition: all 0.3s ease;
+}
+
+.indicator-checkbox:hover {
+background: #e3f2fd;
+border-color: #1da1f2;
+}
+
+.indicator-checkbox input[type="checkbox"] {
+accent-color: #1da1f2;
+}
+
+.indicator-checkbox label {
+margin: 0 !important;
+cursor: pointer;
+font-size: 14px;
 }
 
 </style>
@@ -349,12 +545,28 @@ margin-right:10px
 <script>
 
 function openTab(name){
+    // Cacher tous les contenus d'onglet
+    const contents = document.querySelectorAll('.tab-content');
+    contents.forEach(content => {
+        content.classList.add('hidden');
+    });
+    
+    // Désactiver tous les onglets
+    const tabs = document.querySelectorAll('.tab');
+    tabs.forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    // Afficher le contenu sélectionné
+    document.getElementById(name).classList.remove('hidden');
+    
+    // Activer l'onglet cliqué
+    event.target.classList.add('active');
+}
 
-document.getElementById("forex").style.display="none"
-document.getElementById("portfolio").style.display="none"
-
-document.getElementById(name).style.display="block"
-
+// Initialiser le premier onglet comme actif
+window.onload = function() {
+    document.querySelector('.tab').classList.add('active');
 }
 
 </script>
@@ -363,48 +575,126 @@ document.getElementById(name).style.display="block"
 
 <body>
 
-<h1>Trading Dashboard</h1>
+<div class="header">
+    <h1>🚀 Trading Dashboard</h1>
+</div>
+
+<div class="container">
 
 <div class="tabs">
-
-<div class="tab" onclick="openTab('forex')">Forex</div>
-<div class="tab" onclick="openTab('portfolio')">Portfolio</div>
-
+    <div class="tab" onclick="openTab('forex')">📈 Forex</div>
+    <div class="tab" onclick="openTab('portfolio')">💼 Portfolio</div>
 </div>
 
-<div id="forex">
-
-<select onchange="loadForex(this.value)">
-
-{% for p in pairs %}
-<option>{{p}}</option>
-{% endfor %}
-
-</select>
-
-<div id="forex_content"></div>
-
+<div id="forex" class="tab-content">
+    <div class="forex-controls">
+        <div>
+            <label>Paire de devises:</label>
+            <select id="pairSelect" onchange="loadForex()">
+                {% for p in pairs %}
+                <option>{{p}}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div>
+            <label>Période:</label>
+            <select id="timeframeSelect" onchange="loadForex()">
+                <option value="15m">15 minutes</option>
+                <option value="30m">30 minutes</option>
+                <option value="1h">1 heure</option>
+                <option value="4h">4 heures</option>
+                <option value="1d" selected>1 jour</option>
+                <option value="1wk">1 semaine</option>
+            </select>
+        </div>
+        
+        <div class="indicators">
+            <label style="margin-right: 10px;">Indicateurs:</label>
+            
+            <div class="indicator-checkbox">
+                <input type="checkbox" id="showRSI" checked onchange="loadForex()">
+                <label for="showRSI">RSI</label>
+            </div>
+            
+            <div class="indicator-checkbox">
+                <input type="checkbox" id="showMACD" checked onchange="loadForex()">
+                <label for="showMACD">MACD</label>
+            </div>
+            
+            <div class="indicator-checkbox">
+                <input type="checkbox" id="showSupport" onchange="loadForex()">
+                <label for="showSupport">Support/Résistance</label>
+            </div>
+        </div>
+    </div>
+    <div id="forex_content"><div style="text-align: center; padding: 40px; color: #6c757d;">Sélectionnez une paire de devises pour afficher le graphique</div></div>
 </div>
 
-<div id="portfolio" style="display:none">
-
-<iframe src="/portfolio" width="100%" height="700"></iframe>
+<div id="portfolio" class="tab-content hidden">
+    <iframe src="/portfolio" width="100%" height="700" style="border: none; border-radius: 8px;"></iframe>
+</div>
 
 </div>
 
 <script>
 
-function loadForex(pair){
-
-fetch("/forex?pair="+pair)
-.then(r=>r.text())
-.then(html=>{
-document.getElementById("forex_content").innerHTML=html
-})
-
+function loadForex(){
+    const pair = document.getElementById('pairSelect').value;
+    const timeframe = document.getElementById('timeframeSelect').value;
+    const showRSI = document.getElementById('showRSI').checked;
+    const showMACD = document.getElementById('showMACD').checked;
+    const showSupport = document.getElementById('showSupport').checked;
+    
+    const params = new URLSearchParams({
+        pair: pair,
+        timeframe: timeframe,
+        rsi: showRSI,
+        macd: showMACD,
+        support: showSupport
+    });
+    
+    fetch(`/forex?${params}`)
+    .then(r=>r.text())
+    .then(html=>{
+        document.getElementById("forex_content").innerHTML=html
+    })
+    .catch(err => {
+        console.error('Erreur lors du chargement des données forex:', err);
+        document.getElementById("forex_content").innerHTML = '<div style="text-align: center; padding: 20px; color: #dc3545;">Erreur lors du chargement des données</div>';
+    });
 }
 
-loadForex("EURUSD=X")
+function openTab(name){
+    // Cacher tous les contenus d'onglet
+    const contents = document.querySelectorAll('.tab-content');
+    contents.forEach(content => {
+        content.classList.add('hidden');
+    });
+    
+    // Désactiver tous les onglets
+    const tabs = document.querySelectorAll('.tab');
+    tabs.forEach(tab => {
+        tab.classList.remove('active');
+    });
+    
+    // Afficher le contenu sélectionné
+    document.getElementById(name).classList.remove('hidden');
+    
+    // Activer l'onglet cliqué
+    event.target.classList.add('active');
+    
+    // Charger les données forex si c'est l'onglet forex
+    if(name === 'forex') {
+        loadForex();
+    }
+}
+
+// Initialiser le premier onglet comme actif
+window.onload = function() {
+    document.querySelector('.tab').classList.add('active');
+    loadForex(); // Charger les données forex par défaut
+}
 
 </script>
 
