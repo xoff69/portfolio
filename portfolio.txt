@@ -1,0 +1,7 @@
+Veolia,VIE.PA,10,34.07
+Veolia,VIE.PA,8,32.84
+Eurofins Scientific,ERF.PA,5,66.39
+Ayvens,AYV.PA,30,11.40
+Compagnie des Alpes,CDA.PA,7,27.95
+Compagnie des Alpes,CDA.PA,10,26.4
+Elis,ELIS.PA,7,27.89

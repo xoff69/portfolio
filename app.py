@@ -19,9 +19,11 @@ class Position:
 
 portfolio = [
     Position("Veolia", "VIE.PA", 10, 34.07),
+    Position("Veolia", "VIE.PA", 8, 32.84),
     Position("Eurofins Scientific", "ERF.PA", 5, 66.39),
     Position("Ayvens", "AYV.PA", 30, 11.40),
     Position("Compagnie des Alpes", "CDA.PA", 7, 27.95),
+    Position("Compagnie des Alpes", "CDA.PA", 10, 26.4),
     Position("Elis", "ELIS.PA", 7, 27.89),
 ]
 

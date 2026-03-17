@@ -1,0 +1,3 @@
+Toujours privilégier les trades dans le sens de la tendance.
+Éviter les trades si le RSI est entre 45 et 55.
+Ne proposer un trade que si le ratio risque/gain est supérieur à 1.5.
